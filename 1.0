@@ -1,0 +1,69 @@
+#!/usr/bin/perl -w
+
+use strict;
+use utf8;
+use LWP::Simple;
+use LWP::UserAgent;
+use HTTP::Request;
+use HTTP::Response;
+use HTML::LinkExtor;
+use Mozilla::CA;
+use Encode qw(encode decode);
+binmode(STDOUT, ':encoding(utf8)');
+
+
+my $leave_data = $ARGV[0];
+my $from_station = $ARGV[1];
+my $to_station = $ARGV[2];
+my $purpose_codes = undef;
+
+my $url = "https://kyfw.12306.cn/otn/leftTicket/query?leftTicketDTO.train_date=" . "$leave_data" . "&leftTicketDTO.from_station=".
+"$from_station" .
+"&leftTicketDTO.to_station=".
+"$to_station".
+"&purpose_codes=ADULT";
+
+
+my $ua = LWP::UserAgent->new(ssl_opts => {verify_hostname => 0, }) or die;
+$ua->agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36");
+$ua->protocols_allowed(["http", "https"]);
+$ua->timeout(10);
+
+my $request = HTTP::Request->new(GET=>$url);
+my $response = $ua->request($request);
+	
+if ($response->is_error()) {
+	my $err = $response->status_line;
+	die "$err $!";
+}
+	
+my $content = $response->content();
+
+$_ = $content;
+$_ = decode("utf8",$_);
+my @trains = split /},{/, $_;
+
+for my $train (@trains)
+{
+	if ($train =~ /"station_train_code":"(?<checi>\w\d+)".*?"start_time":"(?<stime>\d+:\d+)","arrive_time":"(?<atime>\d+:\d+)".*?"gg_num":"--","gr_num":"(?<gaojiruanwo>.*?)","qt_num":"--","rw_num":"(?<ruanwo>.*?)","rz_num":"(?<ruanzuo>.*?)","tz_num":"(?<tedengzuo>.*?)","wz_num":"(?<wuzuo>.*?)","yb_num":"--","yw_num":"(?<yingwo>.*?)","yz_num":"(?<yingzuo>.*?)","ze_num":"(?<erdengzuo>.*?)","zy_num":"(?<yidengzuo>.*?)","swz_num":"(?<shangwuzuo>.*?)"/)
+	{
+		print "车次:", "$+{checi}\n";
+		print "出发时间:", "$+{stime}\n";
+		print "到达时间:", "$+{atime}\n";
+		print "商务座:", "$+{shangwuzuo}\n";
+		print "特等座:", "$+{tedengzuo}\n";
+		print "一等座:", "$+{yidengzuo}\n";
+		print "二等座:", "$+{erdengzuo}\n";
+		print "高级软卧:", "$+{gaojiruanwo}\n";
+		print "软卧:", "$+{ruanwo}\n";
+		print "硬卧:", "$+{yingwo}\n";
+		print "软座:", "$+{ruanzuo}\n";
+		print "硬座:", "$+{yingzuo}\n";
+		print "无座:", "$+{wuzuo}\n";
+		my $seperate = "*********" x 8;
+		print "$seperate\n" x 3;
+	}
+
+}
+
+
