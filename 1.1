@@ -1,0 +1,106 @@
+#!/usr/bin/perl -w
+
+use strict;
+use utf8;
+use LWP::Simple;
+use LWP::UserAgent;
+use HTTP::Request;
+use HTTP::Response;
+use HTML::LinkExtor;
+use Mail::Sender;
+use Encode qw(encode decode);
+#binmode(STDOUT, ':encoding(utf8)');
+
+
+my $leave_data = $ARGV[0];
+my $from_station = $ARGV[1];
+my $to_station = $ARGV[2];
+
+my $url = "https://kyfw.12306.cn/otn/leftTicket/query?leftTicketDTO.train_date=" . "$leave_data" .
+	 						"&leftTicketDTO.from_station=". "$from_station" .
+							"&leftTicketDTO.to_station=". "$to_station".
+							"&purpose_codes=ADULT";
+
+my $ua = LWP::UserAgent->new(ssl_opts => {verify_hostname => 0, }) or die;
+$ua->agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36");
+$ua->protocols_allowed(["http", "https"]);
+$ua->timeout(10);
+
+my $request = HTTP::Request->new(GET=>$url);
+my $response = $ua->request($request);
+	
+if ($response->is_error()) {
+	my $err = $response->status_line;
+	die "$err $!";
+}
+	
+my $content = $response->content();
+$_ = $content;
+$_ = decode("utf8",$_);
+my @trains = split /},{/, $_;
+
+for my $train (@trains)
+{
+	if ($train =~ /"station_train_code":"(?<checi>\w\d+)".*?"start_time":"(?<stime>\d+:\d+)","arrive_time":"(?<atime>\d+:\d+)".*?"gg_num":"--","gr_num":"(?<gaojiruanwo>.*?)","qt_num":"--","rw_num":"(?<ruanwo>.*?)","rz_num":"(?<ruanzuo>.*?)","tz_num":"(?<tedengzuo>.*?)","wz_num":"(?<wuzuo>.*?)","yb_num":"--","yw_num":"(?<yingwo>.*?)","yz_num":"(?<yingzuo>.*?)","ze_num":"(?<erdengzuo>.*?)","zy_num":"(?<yidengzuo>.*?)","swz_num":"(?<shangwuzuo>.*?)"/)
+	{
+		my $checi = $+{checi};
+		my $stime = $+{stime};
+		my $atime = $+{atime};
+		my $shangwuzuo = &get_num( $+{shangwuzuo});
+		my $tedengzuo = &get_num( $+{tedengzuo});
+		my $yidengzuo = &get_num( $+{yidengzuo});
+		my $erdengzuo = &get_num( $+{erdengzuo});
+		my $gaojiruanwo = &get_num( $+{gaojiruanwo});
+		my $ruanwo = &get_num( $+{ruanwo});
+		my $yingwo = &get_num( $+{yingwo});
+		my $ruanzuo = &get_num( $+{ruanzuo});
+		my $yingzuo = &get_num( $+{yingzuo});
+		my $wuzuo = &get_num( $+{wuzuo});
+		my $total_tickets = $shangwuzuo + $tedengzuo + $yidengzuo + 
+					$erdengzuo + $gaojiruanwo + $ruanwo + 
+					$yingwo + $ruanzuo + $yingzuo + $wuzuo;
+									
+		if ($total_tickets < 10) {
+			&send_mail ($checi);
+			sleep 60;
+		}			
+	}
+
+}
+
+sub get_num {
+	my $num = 0;
+	if ($_[0] eq "有") {
+		$num = 1000;
+	}
+	if ($_[0] =~ /\d+/) {
+		$num = $_[0];
+	}
+	return $num;
+}
+
+sub send_mail {
+	my $sender = new Mail::Sender
+	{
+	  smtp    => 'smtp.***.com',
+	  from    => '***',
+	  auth    => "LOGIN",
+	  authid  => '***',
+	  authpwd => "***"
+	} or die "error";
+
+
+	my $message = "Tickets is less than 10 on train $_[0]";
+
+
+	if($sender-> MailMsg ({
+	             to      => '***',
+	             subject => "TICKETS_URGENCY" ,
+	             msg     =>  $message, })<0)
+	{
+	  die "$Mail::Sender::Error/n";
+	}
+	 $sender->Close();
+}
+
+
