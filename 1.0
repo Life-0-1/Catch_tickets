@@ -9,7 +9,6 @@ use HTTP::Response;
 use HTML::LinkExtor;
 use Mozilla::CA;
 use Encode qw(encode decode);
-binmode(STDOUT, ':encoding(utf8)');
 
 
 my $leave_data = $ARGV[0];
@@ -23,7 +22,6 @@ my $url = "https://kyfw.12306.cn/otn/leftTicket/query?leftTicketDTO.train_date="
 "$to_station".
 "&purpose_codes=ADULT";
 
-
 my $ua = LWP::UserAgent->new(ssl_opts => {verify_hostname => 0, }) or die;
 $ua->agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36");
 $ua->protocols_allowed(["http", "https"]);
@@ -31,7 +29,9 @@ $ua->timeout(10);
 
 my $request = HTTP::Request->new(GET=>$url);
 my $response = $ua->request($request);
-	
+
+binmode(STDOUT, ':encoding(utf8)');
+
 if ($response->is_error()) {
 	my $err = $response->status_line;
 	die "$err $!";
